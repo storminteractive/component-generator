@@ -1,0 +1,207 @@
+import swal from 'sweetalert';
+import appConstant from '../../../constants';
+import ah from '../../../helpers/Axhelper';
+
+export default class <%= props.name %>Model {
+
+  baseurl = appConstant.baseUrl;
+  allUrl = this.baseurl+"<%= props.name %>/all/";
+  detailsUrl = this.baseurl+"<%= props.name %>/details/";
+  addUrl = this.baseurl+"<%= props.name %>/";
+  saveUrl = this.baseurl+"<%= props.name %>/";
+  deleteUrl = this.baseurl+"<%= props.name %>/";
+
+  initState = {};
+
+  constructor(updateStateCallback) {
+    this.updateStateCallback = updateStateCallback;
+  }
+
+  ////////////////////////////////////////
+
+  displayAlert(e,message){
+    let title = "Success!";
+    let icon = "success";
+    if(e) {title = "Error!"; icon = "error";}
+    swal({title: title, text: message, icon: icon});
+  }
+
+  confirmMessage = (message,cbtrue) => {
+    swal({
+      title: "Confirm",
+      text: message,
+      icon: "warning",
+      buttons: true,
+      dangerMode: true,
+    }).then((willDelete) => {
+      if (willDelete) {
+        cbtrue();
+      }
+    });
+  }
+
+  //////////////////////////////////////
+
+  getInitState = id => {
+    if (id) this.initState.id = id;
+    return this.initState;
+  };
+
+  getItems = (url) => {
+    ah.sendGet(url, async (e,res)=>{
+      console.log(`TCL: <%= props.name %>Model -> getItems -> res`,res);
+      if(e){ this.displayAlert(true, e); return; }
+      if((res!==null) && (!Array.isArray(res))) res = new Array(res);
+      await this.updateStateCallback({ loading: false, items: res });
+    });
+  }
+
+  getStats = () => {
+    ah.sendGet(this.statsUrl, async (e,res)=>{
+      console.log(`TCL: <%= props.name %>Model -> getStats -> statsUrl,e,res`, this.statsUrl,e,res);
+      if(e){ this.displayAlert(true, e); return; }
+      
+      if(!res[0]){
+        await this.updateStateCallback({ 
+          statCustomers: "0",
+          statRevenue: "0"
+        });
+        return;  
+      } else {
+        await this.updateStateCallback({ 
+          statCustomers: (res[0].allCustomers).toString(),
+          statRevenue: (res[0].allRevenue).toString()
+        });  
+      }
+    });
+
+    ah.sendGet(this.allUrl, async (e,res)=>{
+      console.log(`TCL: <%= props.name %>Model -> getStats -> allUrl,e,res`, this.allUrl,e,res);
+      if(e){ this.displayAlert(true, e); return; }
+      if(!res[0]){
+        await this.updateStateCallback({ 
+          statTopRef: "None",
+          statTopRefCount: "0",
+        });
+      } else {
+        await this.updateStateCallback({ 
+          statTopRef: res[0].name,
+          statTopRefCount: (res[0].totalCustomers).toString()
+        });
+      }
+    });
+  }
+
+  loadDetails = (id) => {
+    let url = this.detailsUrl + id;
+    ah.sendGet(url, async (e,res)=>{
+      console.log(`TCL: <%= props.name %>Model -> loadDetails -> url, id, res`,url, id, res);
+      if(e){ this.displayAlert(true, e); return; }
+      await this.updateStateCallback({ loading: false, ...res });
+    });
+  }
+
+  loadItem = (id) => {
+    let url = this.detailsUrl + id;
+    ah.sendGet(url, async (e,res)=>{
+      console.log(`TCL: <%= props.name %>Model -> loadItem -> url, id, res`,url, id, res);
+      if(e){ this.displayAlert(true, e); return; }
+
+      await this.updateStateCallback({ 
+        loading: false, 
+        selectedCustomer: {
+          label: res.name,
+          value: res.customerId
+        },
+        item: {
+          refDiscount: res.refDiscount,
+          persDiscount: res.persDiscount
+        }
+      });
+
+    });
+  }
+
+  loadCustomerById = (id,cb) => {
+    const url = appConstant.baseUrl+"customers/details/"+id;
+    ah.sendGet(url, (e,res)=>{
+      console.log(`TCL: <%= props.name %>Model -> loadCustomerById -> url,e,res`, url,e,res);
+      if(e){ this.displayAlert(true, e); return; }
+      cb(e,{'label': res.name, 'value':res._id});
+    });
+  }
+
+  loadAsyncCustomers = (search,cb) => {
+    const url = appConstant.baseUrl+"customers/search/"+search;
+    if (search.length<3) cb ([]);
+
+    ah.sendGet(url, (e,res)=>{
+      console.log(`TCL: <%= props.name %>Model -> loadAsyncCustomers -> url,e,res`, url,e,res);
+      if(e){ this.displayAlert(true, e); return; }
+      let options = [];
+      res.map((customer)=>{
+        options.push({label: customer.name, value: customer._id});
+        return customer;
+      })
+      cb(e,options);
+    });
+  }
+
+  handleFieldChange = async (event) => {
+    const { value, name } = event.target;
+    await this.updateStateCallback({
+      [name]: value,
+    });
+  }
+
+  /*
+  // Merging field changes "item", has to be in main file
+  handleDataFieldChange = async (event) => {
+    const { value, name } = event.target;
+    let newItem = this.state.item;
+    newItem[name] = value;
+    console.log(`<%= props.name %>Add -> handleFieldChange -> newitem`, newItem);
+    await this.setState({item: newItem});    
+  }
+  */
+
+  addItem = (item) => {
+    let url = this.addUrl;
+    console.log(`TCL: <%= props.name %>Model -> addItem -> url, data`, url, item);
+
+    ah.sendPost(url,item,async (e,res)=>{
+      if(e){ this.displayAlert(true, e); return; }
+      this.displayAlert(null, "Item successfully saved!");
+      await this.updateStateCallback({ saved: true});
+    })
+    return;
+  };
+
+  saveItem = (id,item) => {
+    let url = this.saveUrl+id;
+    console.log(`TCL: <%= props.name %>Model -> saveItem -> url, data`, url, item);
+
+    ah.sendPut(url,item,async (e,res)=>{
+      if(e){ this.displayAlert(true, e); return; }
+      this.displayAlert(null, "Item successfully saved!");
+      await this.updateStateCallback({ saved: true});
+    })
+    return;
+  };
+
+  deleteItem = (id) => {
+    let url = this.deleteUrl+id;
+    console.log(`TCL: <%= props.name %>Model -> deleteItem -> id, url`, id, url);
+
+    this.confirmMessage("Are you sure to delete this item?",()=>{
+      ah.sendDelete(url,async (e,res)=>{
+        if(e){ this.dispdeletelert(true, e); return; }
+        this.displayAlert(null, "Item successfully saved!");
+        await this.updateStateCallback({ deleted: true});
+      })
+      return;  
+    })
+  };
+
+  
+}
